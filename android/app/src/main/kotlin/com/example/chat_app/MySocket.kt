@@ -1,65 +1,32 @@
 package com.example.chat_app
-import android.os.Bundle
-import android.os.StrictMode
-import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugins.Pigeon
+
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
 import java.io.PrintWriter
-import java.net.*
-import java.util.*
-import com.example.chat_app.MySocket
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.ServerSocket
+import java.net.Socket
+import java.util.HashSet
 
-class MainActivity : FlutterActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-//        setContentView(R.layout.activity_main)
+class MySocket : Thread() {
 
-        val policy = StrictMode.ThreadPolicy.Builder().permitAll().build()
-        StrictMode.setThreadPolicy(policy)
-
-        // rest of your code
-    }
-    private class ChatApi: Pigeon.ChatApi {
-        override fun search(keyword: String): MutableList<Pigeon.Chat> {
-            val random = Random()
-            val str = "https://source.unsplash.com/random/?book?sig=" + random.nextInt()
-            val chat = Pigeon.Chat()
-            val newSocket: MySocket = MySocket()
-            newSocket.main()
-            chat.clients = "changed"
-            chat.message = InetAddress.getByName("192.168.137.137").toString()
-
-            return Collections.singletonList(chat)
-        }
-    }
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        Pigeon.ChatApi.setup(flutterEngine.dartExecutor.binaryMessenger, ChatApi())
-    }
-}
-object Main : Thread() {
-
-    private const val PORT = 9000
+    private val PORT = 9000
 
     private val names = HashSet<String>()
 
 
     private val writers = HashSet<PrintWriter>()
 
-
-    @Throws(Exception::class)
-    @JvmStatic
-    fun main(args: Array<String>) {
+    public fun main() {
         var socket: Socket? = null
         println("The chat server is running.")
         Thread {
             println("Listening to broadcast messages")
-            val serverDiscovery = ServerDiscovery
+            val serverDiscovery = ServerDiscovery()
             try {
-                ServerDiscovery.sendAddress()
+                ServerDiscovery().sendAddress()
             } catch (e: Exception) {
                 println(e)
             }
@@ -77,11 +44,11 @@ object Main : Thread() {
         }
     }
 
-    private object ServerDiscovery {
+    private class ServerDiscovery {
         //        private static final int PORT = 8888;
         @Throws(Exception::class)
         fun sendAddress() {
-            val socket = DatagramSocket(PORT)
+            val socket = DatagramSocket(MySocket().PORT)
             val receiveData = ByteArray(1024)
             val receivePacket = DatagramPacket(receiveData, receiveData.size)
             do {
@@ -140,9 +107,9 @@ object Main : Thread() {
                     }
                     username = username!!.split("/").toTypedArray()[0]
                     println("$username :Has connected")
-                    synchronized(names) {
-                        if (!names.contains(username)) {
-                            names.add(username!!)
+                    synchronized(MySocket().names) {
+                        if (!MySocket().names.contains(username)) {
+                            MySocket().names.add(username!!)
                             return
                         }
                     }
@@ -150,17 +117,17 @@ object Main : Thread() {
 
 
                 out!!.println("NAMEACCEPTED")
-                writers.add(out!!)
-                for (writer in writers) {
+                MySocket().writers.add(out!!)
+                for (writer in MySocket().writers) {
                     writer.println("DISCONNECT $username has connected")
-                    writer.println("CONTACTS " + names.toString())
+                    writer.println("CONTACTS " + MySocket().names.toString())
                 }
 
 
 
                 while (true) {
                     val input = `in`!!.readLine() ?: return
-                    for (writer in writers) {
+                    for (writer in MySocket().writers) {
                         writer.println("MESSAGE $username: $input")
                     }
                 }
@@ -169,14 +136,14 @@ object Main : Thread() {
             } finally {
 
                 if (username != null) {
-                    names.remove(username)
-                    for (writer in writers) {
+                    MySocket().names.remove(username)
+                    for (writer in MySocket().writers) {
                         writer.println("DISCONNECT $username has disconnected")
-                        writer.println("CONTACTS " + names.toString())
+                        writer.println("CONTACTS " + MySocket().names.toString())
                     }
                 }
                 if (out != null) {
-                    writers.remove(out)
+                    MySocket().writers.remove(out)
                 }
                 try {
                     socket!!.close()
@@ -187,5 +154,3 @@ object Main : Thread() {
         }
     }
 }
-
-

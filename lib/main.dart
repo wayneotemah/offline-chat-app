@@ -1,3 +1,4 @@
+import 'package:chat_app/pigeon.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -30,6 +31,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
+  List<Chat> chats = [];
 
   void _incrementCounter() {
     setState(() {
@@ -39,6 +41,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    Future getChat() async {
+      final List<Chat?> chats = await ChatApi().search('Killer');
+      final newChats = List<Chat>.from(chats);
+      print(chats[0]!.message);
+      setState(() => this.chats..addAll(newChats));
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
@@ -58,7 +67,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
+        onPressed: getChat,
         tooltip: 'Increment',
         child: const Icon(Icons.add),
       ),
