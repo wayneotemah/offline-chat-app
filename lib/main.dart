@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:chat_app/pigeon.dart';
 import 'package:flutter/material.dart';
 
@@ -15,13 +17,13 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  MyHomePage({super.key, required this.title});
 
   final String title;
 
@@ -31,23 +33,31 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
+
   List<Chat> chats = [];
 
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
+  Future getChat() async {
+    final List<Chat?> chats = await ChatApi().search('Killer');
+    final newChats = List<Chat>.from(chats);
+    print('${chats[0]!.message}');
+    print('${chats[0]!.clients}');
+  }
+
+  void startTimer() {
+    Timer.periodic(const Duration(seconds: 3), (timer) {
+      getChat();
     });
   }
 
   @override
-  Widget build(BuildContext context) {
-    Future getChat() async {
-      final List<Chat?> chats = await ChatApi().search('Killer');
-      final newChats = List<Chat>.from(chats);
-      print(chats[0]!.message);
-      setState(() => this.chats..addAll(newChats));
-    }
+  void initState() {
+    startTimer();
 
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
