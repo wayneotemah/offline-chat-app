@@ -5,9 +5,14 @@ class Chat {
   String? clients;
 }
 
+class LogoutRequest {
+  bool? logout;
+}
+
 @HostApi()
 abstract class ChatApi {
   List<Chat?> search(String keyword);
+  void logout(LogoutRequest request);
 }
 
 // String scream(int length) => "A${'a' * length}h!";

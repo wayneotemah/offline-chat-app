@@ -1,16 +1,16 @@
 package com.example.chat_app
+
 import android.os.Bundle
 import android.os.StrictMode
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugins.Pigeon
 import java.io.BufferedReader
-import java.io.IOException
 import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.net.*
 import java.util.*
-import com.example.chat_app.MySocket
+
 
 class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,170 +22,105 @@ class MainActivity : FlutterActivity() {
 
         // rest of your code
     }
-    private class ChatApi: Pigeon.ChatApi {
+
+    private class ChatApi : Pigeon.ChatApi {
         override fun search(keyword: String): MutableList<Pigeon.Chat> {
             val random = Random()
             val str = "https://source.unsplash.com/random/?book?sig=" + random.nextInt()
             val chat = Pigeon.Chat()
-            val newSocket: MySocket = MySocket()
-            newSocket.main()
+            val client = Trial()
+            client.run()
             chat.clients = "changed"
-            chat.message = InetAddress.getByName("192.168.137.137").toString()
-
+            chat.message = ""
             return Collections.singletonList(chat)
         }
     }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         Pigeon.ChatApi.setup(flutterEngine.dartExecutor.binaryMessenger, ChatApi())
     }
-}
-object Main : Thread() {
-
-    private const val PORT = 9000
-
-    private val names = HashSet<String>()
 
 
-    private val writers = HashSet<PrintWriter>()
-
-
-    @Throws(Exception::class)
-    @JvmStatic
-    fun main(args: Array<String>) {
-        var socket: Socket? = null
-        println("The chat server is running.")
-        Thread {
-            println("Listening to broadcast messages")
-            val serverDiscovery = ServerDiscovery
-            try {
-                ServerDiscovery.sendAddress()
-            } catch (e: Exception) {
-                println(e)
+    class Trial {
+        private var `in`: BufferedReader? = null
+        var out: PrintWriter? = null
+        private val name: String
+            private get() {
+                return android.os.Build.MODEL
             }
-        }.start()
-        //        ServerDiscovery serverDiscover = new ServerDiscovery();
-//        serverDiscover.sendAddress();
-        val listener = ServerSocket(PORT)
-        try {
-            while (true) {
-                socket = listener.accept()
-                Handler(socket).start()
-            }
-        } finally {
-            listener.close()
-        }
-    }
 
-    private object ServerDiscovery {
-        //        private static final int PORT = 8888;
         @Throws(Exception::class)
-        fun sendAddress() {
-            val socket = DatagramSocket(PORT)
-            val receiveData = ByteArray(1024)
-            val receivePacket = DatagramPacket(receiveData, receiveData.size)
-            do {
-                println("Received a message")
-                socket.receive(receivePacket)
-                val message = String(receivePacket.data).trim { it <= ' ' }
-                if (message == "DISCOVER_SERVER_REQUEST") {
-                    println("Received a discover message")
+        fun run() {
+            val serverAddress = "192.168.1.202"
+            val socket = Socket(serverAddress, 9001)
+            `in` = BufferedReader(InputStreamReader(socket.getInputStream()))
+            out = PrintWriter(socket.getOutputStream(), true)
+            while (true) {
+                val line: String = `in`!!.readLine()
+                if (line.startsWith("SUBMITNAME")) {
+                    out!!.println(name)
+                } else if (line.startsWith("NAMEACCEPTED")) {
+                    println("name accepted")
+                } else if (line.startsWith("MESSAGE")) {
+                    println(
+                        """
+                        ${line.substring(8)}
+                        
+                        """.trimIndent()
+                    )
+                } else if (line.startsWith("CONTACTS")) {
+                    println("Contacts ${line.substring(8)}")
 
-                    // Get server's IP address
-                    val serverAddress = receivePacket.address
+                } else if (line.startsWith("DISCONNECT")) {
+                    println("disconnect ${line.substring(10)}")
 
-                    // Get server's hostname
-                    val serverHostname = serverAddress.hostName
+                }
+            }
+        }
 
-                    // Send response back to client
-                    val response =
-                        "DISCOVER_SERVER_RESPONSE " + serverAddress.hostAddress + " " + serverHostname
-                    val sendData = response.toByteArray()
+        private object ServerDiscovery {
+            private const val BROADCAST_IP = "255.255.255.255"
+
+            @get:Throws(Exception::class)
+            val serverAddress: String
+                get() {
+                    val socket = DatagramSocket()
+                    socket.broadcast = true
+                    val sendData = "DISCOVER_SERVER_REQUEST".toByteArray()
                     val sendPacket = DatagramPacket(
-                        sendData,
-                        sendData.size,
-                        receivePacket.address,
-                        receivePacket.port
+                        sendData, sendData.size, InetAddress.getByName(
+                            BROADCAST_IP
+                        ), 9001
                     )
                     socket.send(sendPacket)
-                }
-            } while (true)
-        }
-    }
-
-    private class Handler
-        (private val socket: Socket?) : Thread() {
-        private var username: String? = null
-        private var `in`: BufferedReader? = null
-        private var out: PrintWriter? = null
-
-
-        override fun run() {
-            try {
-
-                // Create character streams for the socket.
-                `in` = BufferedReader(
-                    InputStreamReader(
-                        socket!!.getInputStream()
-                    )
-                )
-                out = PrintWriter(socket.getOutputStream(), true)
-
-
-                while (true) {
-                    out!!.println("SUBMITNAME")
-                    username = `in`!!.readLine()
-                    if (username == null) {
-                        return
-                    }
-                    username = username!!.split("/").toTypedArray()[0]
-                    println("$username :Has connected")
-                    synchronized(names) {
-                        if (!names.contains(username)) {
-                            names.add(username!!)
-                            return
+                    val receiveData = ByteArray(1024)
+                    val receivePacket = DatagramPacket(receiveData, receiveData.size)
+                    while (true) {
+                        println("Looking  for server in local net")
+                        socket.receive(receivePacket)
+                        val message: String = String(receivePacket.data).trim { it <= ' ' }
+                        if (message.startsWith("DISCOVER_SERVER_RESPONSE")) {
+                            System.out.println(
+                                "Found server at " + receivePacket.address.hostAddress
+                            )
+                            return receivePacket.address.hostAddress as String
                         }
                     }
                 }
-
-
-                out!!.println("NAMEACCEPTED")
-                writers.add(out!!)
-                for (writer in writers) {
-                    writer.println("DISCONNECT $username has connected")
-                    writer.println("CONTACTS " + names.toString())
-                }
-
-
-
-                while (true) {
-                    val input = `in`!!.readLine() ?: return
-                    for (writer in writers) {
-                        writer.println("MESSAGE $username: $input")
-                    }
-                }
-            } catch (e: IOException) {
-                println("$username Has disconnected")
-            } finally {
-
-                if (username != null) {
-                    names.remove(username)
-                    for (writer in writers) {
-                        writer.println("DISCONNECT $username has disconnected")
-                        writer.println("CONTACTS " + names.toString())
-                    }
-                }
-                if (out != null) {
-                    writers.remove(out)
-                }
-                try {
-                    socket!!.close()
-                } catch (e: IOException) {
-                    println(e)
-                }
-            }
         }
+
+//        companion object {
+//            @Throws(Exception::class)
+//            @JvmStatic
+//            fun main() {
+//
+//            }
+//        }
     }
+
+
 }
+
 
 
